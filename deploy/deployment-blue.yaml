@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: html-blue
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: html
+      version: blue
+  template:
+    metadata:
+      labels:
+        app: html
+        version: blue
+    spec:
+      containers:
+        - name: nginx
+          image: sandy/bluegreen:<IMAGE_TAG>
+          ports:
+            - containerPort: 80
