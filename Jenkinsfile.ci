@@ -3,7 +3,7 @@ pipeline {
 
 
     environment {
-        IMAGE_NAME = 'sooraj0249/nodejs-ats-app'
+        IMAGE_NAME = 'sandy/blue-green'
         IMAGE_TAG = "${BUILD_NUMBER}"
         // IMAGE_TAG = "latest"
         DOCKERHUB_CREDENTIALS = credentials('dockerhub-creds')
