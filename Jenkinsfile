@@ -29,7 +29,7 @@ pipeline {
               cp blue/index.html .
               echo "Building and pushing blue image..."
               echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-              docker build -t $IMAGE_NAME:blue .
+              docker build --no-cache -t $IMAGE_NAME:blue .
               docker push $IMAGE_NAME:blue
             '''
           }
@@ -45,7 +45,7 @@ pipeline {
               cp green/index.html .
               echo "Building and pushing green image..."
               echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-              docker build -t $IMAGE_NAME:green .
+              docker build --no-cache -t $IMAGE_NAME:green .
               docker push $IMAGE_NAME:green
             '''
           }
