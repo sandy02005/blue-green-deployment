@@ -3,8 +3,8 @@ pipeline {
 
   environment {
     DOCKERHUB_CREDENTIALS = credentials('DOCKERHUB_CREDENTIALS')
-    IMAGE_NAME = "sandy16docker/bluegreen"
     IMAGE_TAG = "${BUILD_NUMBER}"
+    IMAGE_NAME = "sandy16docker/bluegreen"
     ARM_CLIENT_ID       = credentials('AZURE_CLIENT_ID')
     ARM_CLIENT_SECRET   = credentials('AZURE_CLIENT_SECRET')
     ARM_TENANT_ID       = credentials('AZURE_TENANT_ID')
@@ -22,33 +22,33 @@ pipeline {
     }
 
     stage('Blue - Build & Push') {
-    steps {
+      steps {
         script {
-        withCredentials([usernamePassword(credentialsId: 'DOCKERHUB_CREDENTIALS', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+          withCredentials([usernamePassword(credentialsId: 'DOCKERHUB_CREDENTIALS', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
             sh '''
-            cp blue/index.html index.html
-            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-            docker build --no-cache -t $IMAGE_NAME:blue .
-            docker push $IMAGE_NAME:blue
+              cp blue/index.html index.html
+              echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+              docker build --no-cache -t $IMAGE_NAME:blue-$BUILD_NUMBER .
+              docker push $IMAGE_NAME:blue-$BUILD_NUMBER
             '''
+          }
         }
-        }
-    }
+      }
     }
 
     stage('Green - Build & Push') {
-        steps {
-            script {
-            withCredentials([usernamePassword(credentialsId: 'DOCKERHUB_CREDENTIALS', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                sh '''
-                cp green/index.html index.html
-                echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                docker build --no-cache -t $IMAGE_NAME:green .
-                docker push $IMAGE_NAME:green
-                '''
-            }
-            }
+      steps {
+        script {
+          withCredentials([usernamePassword(credentialsId: 'DOCKERHUB_CREDENTIALS', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+            sh '''
+              cp green/index.html index.html
+              echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+              docker build --no-cache -t $IMAGE_NAME:green-$BUILD_NUMBER .
+              docker push $IMAGE_NAME:green-$BUILD_NUMBER
+            '''
+          }
         }
+      }
     }
 
     stage('Azure Login') {
@@ -98,8 +98,7 @@ pipeline {
     stage('Deploy Blue to AKS') {
       steps {
         sh '''
-          az aks get-credentials --resource-group $RESOURCE_GROUP --name $CLUSTER_NAME --overwrite-existing
-          sed "s|<IMAGE_TAG>|blue|g" deploy/deployment-blue.yaml | kubectl apply -f -
+          sed "s|<IMAGE_TAG>|blue-$BUILD_NUMBER|g" deploy/deployment-blue.yaml | kubectl apply -f -
         '''
       }
     }
@@ -116,8 +115,7 @@ pipeline {
     stage('Deploy Green to AKS') {
       steps {
         sh '''
-          az aks get-credentials --resource-group $RESOURCE_GROUP --name $CLUSTER_NAME --overwrite-existing
-          sed "s|<IMAGE_TAG>|green|g" deploy/deployment-green.yaml | kubectl apply -f -
+          sed "s|<IMAGE_TAG>|green-$BUILD_NUMBER|g" deploy/deployment-green.yaml | kubectl apply -f -
         '''
       }
     }
