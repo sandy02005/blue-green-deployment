@@ -21,6 +21,5 @@ spec:
         - name: nginx
           image: sandy16docker/bluegreen:<IMAGE_TAG> # <IMAGE_TAG> replaced by Jenkins (blue/green)
           imagePullPolicy: Always
-
           ports:
             - containerPort: 80
