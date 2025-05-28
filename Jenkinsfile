@@ -3,7 +3,7 @@ pipeline {
 
 
   environment {
-    DOCKERHUB_CREDENTIALS = credentials('Dockerhub')
+    DOCKERHUB_CREDENTIALS = credentials('DOCKERHUB_CREDENTIALS')
     IMAGE_NAME = "sandy16docker/bluegreen"
     IMAGE_TAG = "${BUILD_NUMBER}"
     ARM_CLIENT_ID       = credentials('AZURE_CLIENT_ID')
@@ -27,9 +27,11 @@ pipeline {
     stage('Blue - Build & Push') {
       steps {
         script {
-            withCredentials([usernamePassword(credentialsId: 'Dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+            withCredentials([usernamePassword(credentialsId: 'DOCKERHUB_CREDENTIALS', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
             sh '''
                 cp blue/index.html .
+                echo "Building and pushing blue image..."
+                echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
                 docker build -t $IMAGE_NAME:blue .
                 docker push $IMAGE_NAME:blue
             '''
@@ -41,9 +43,11 @@ pipeline {
     stage('Green - Build & Push') {
       steps {
         script {
-        withCredentials([usernamePassword(credentialsId: 'Dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+        withCredentials([usernamePassword(credentialsId: 'DOCKERHUB_CREDENTIALS', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
             sh '''
                 cp green/index.html .
+                echo "Building and pushing green image..."
+                echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
                 docker build -t $IMAGE_NAME:green .
                 docker push $IMAGE_NAME:green
             '''
