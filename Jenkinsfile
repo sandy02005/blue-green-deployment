@@ -5,6 +5,7 @@ pipeline {
   environment {
     DOCKERHUB_CREDENTIALS = credentials('dockerhub-creds')
     IMAGE_NAME = "sandy/bluegreen"
+    IMAGE_TAG = "${BUILD_NUMBER}"
     ARM_CLIENT_ID       = credentials('AZURE_CLIENT_ID')
     ARM_CLIENT_SECRET   = credentials('AZURE_CLIENT_SECRET')
     ARM_TENANT_ID       = credentials('AZURE_TENANT_ID')
@@ -21,20 +22,36 @@ pipeline {
             checkout scm
         }
     }
-
-    stage('Blue - Build & Push') {
-      steps {
-        script {
-            withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-            sh '''
-                cp blue/index.html .
-                docker build -t $IMAGE_NAME:blue .
-                docker push $IMAGE_NAME:blue
-            '''
+    stage("Build Docker Image") {
+            steps {
+                script {
+                    echo "🛠️ Building Docker image with no cache..."
+                    sh "docker build --no-cache -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+                }
             }
         }
-      }
-    }
+         stage("Hello world") {
+            steps {
+                script {
+                    echo "Hello world"
+                }
+            }
+          
+        }
+
+    // stage('Blue - Build & Push') {
+    //   steps {
+    //     script {
+    //         withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+    //         sh '''
+    //             cp blue/index.html .
+    //             docker build -t $IMAGE_NAME:blue .
+    //             docker push $IMAGE_NAME:blue
+    //         '''
+    //         }
+    //     }
+    //   }
+    // }
 
     // stage('Green - Build & Push') {
     //   steps {
