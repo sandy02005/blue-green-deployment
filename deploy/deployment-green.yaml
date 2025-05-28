@@ -1,4 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
 metadata:
   name: html-green
----
-version: green
+  labels:
+    app: html
+    version: green
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: html
+      version: green
+  template:
+    metadata:
+      labels:
+        app: html
+        version: green
+    spec:
+      containers:
+        - name: nginx
+          image: sandy16docker/bluegreen:<IMAGE_TAG>
+          ports:
+            - containerPort: 80

@@ -1,7 +1,6 @@
 pipeline {
   agent any
 
-
   environment {
     DOCKERHUB_CREDENTIALS = credentials('DOCKERHUB_CREDENTIALS')
     IMAGE_NAME = "sandy16docker/bluegreen"
@@ -14,28 +13,26 @@ pipeline {
     CLUSTER_NAME        = 'bluegreen-aks'
   }
 
-
   stages {
     stage('Git Checkout') {
-        steps {
-            echo "Git Checkout"
-            checkout scm
-        }
+      steps {
+        echo "Git Checkout"
+        checkout scm
+      }
     }
-
 
     stage('Blue - Build & Push') {
       steps {
         script {
-            withCredentials([usernamePassword(credentialsId: 'DOCKERHUB_CREDENTIALS', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+          withCredentials([usernamePassword(credentialsId: 'DOCKERHUB_CREDENTIALS', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
             sh '''
-                cp blue/index.html .
-                echo "Building and pushing blue image..."
-                echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                docker build -t $IMAGE_NAME:blue .
-                docker push $IMAGE_NAME:blue
+              cp blue/index.html .
+              echo "Building and pushing blue image..."
+              echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+              docker build -t $IMAGE_NAME:blue .
+              docker push $IMAGE_NAME:blue
             '''
-            }
+          }
         }
       }
     }
@@ -43,75 +40,67 @@ pipeline {
     stage('Green - Build & Push') {
       steps {
         script {
-        withCredentials([usernamePassword(credentialsId: 'DOCKERHUB_CREDENTIALS', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+          withCredentials([usernamePassword(credentialsId: 'DOCKERHUB_CREDENTIALS', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
             sh '''
-                cp green/index.html .
-                echo "Building and pushing green image..."
-                echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                docker build -t $IMAGE_NAME:green .
-                docker push $IMAGE_NAME:green
+              cp green/index.html .
+              echo "Building and pushing green image..."
+              echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+              docker build -t $IMAGE_NAME:green .
+              docker push $IMAGE_NAME:green
             '''
-        }
-          
-
+          }
         }
       }
     }
 
     stage('Azure login') {
-         steps {
-             echo "🔐 Logging into Azure..."
-             sh '''
-             az login --service-principal \
-                 --username "$ARM_CLIENT_ID" \
-                 --password "$ARM_CLIENT_SECRET" \
-                 --tenant "$ARM_TENANT_ID"
-             az account set --subscription "$ARM_SUBSCRIPTION_ID"
-             az aks get-credentials \
-                 --resource-group "$RESOURCE_GROUP" \
-                 --name "$CLUSTER_NAME" \
-                 --overwrite-existing
-             '''
-         }
-     }
+      steps {
+        echo "🔐 Logging into Azure..."
+        sh '''
+          az login --service-principal \
+            --username "$ARM_CLIENT_ID" \
+            --password "$ARM_CLIENT_SECRET" \
+            --tenant "$ARM_TENANT_ID"
+          az account set --subscription "$ARM_SUBSCRIPTION_ID"
+          az aks get-credentials \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$CLUSTER_NAME" \
+            --overwrite-existing
+        '''
+      }
+    }
 
-        stage('Wait for AKS Cluster') {
-            steps {
-                script {
-                    def maxRetries = 12
-                    def delay = 15
-                    def ready = false
+    stage('Wait for AKS Cluster') {
+      steps {
+        script {
+          def maxRetries = 12
+          def delay = 15
+          def ready = false
 
-                    for (int i = 1; i <= maxRetries; i++) {
-                        def result = sh(script: 'kubectl get nodes', returnStatus: true)
-                        if (result == 0) {
-                            echo "✅ Cluster is ready"
-                            // Show detailed node info after cluster is ready
-                            sh 'kubectl get nodes -o wide'
-                            ready = true
-                            break
-                        } else {
-                            echo "⏳ Attempt ${i}/${maxRetries} - Cluster not ready. Retrying in ${delay}s..."
-                            sleep time: delay, unit: 'SECONDS'
-                        }
-                    }
-
-                    if (!ready) {
-                        error("❌ Cluster did not become reachable within timeout.")
-                    }
-                }
+          for (int i = 1; i <= maxRetries; i++) {
+            def result = sh(script: 'kubectl get nodes', returnStatus: true)
+            if (result == 0) {
+              echo "✅ Cluster is ready"
+              sh 'kubectl get nodes -o wide'
+              ready = true
+              break
+            } else {
+              echo "⏳ Attempt ${i}/${maxRetries} - Cluster not ready. Retrying in ${delay}s..."
+              sleep time: delay, unit: 'SECONDS'
             }
+          }
+
+          if (!ready) {
+            error("❌ Cluster did not become reachable within timeout.")
+          }
         }
+      }
+    }
 
     stage('Deploy Blue to AKS') {
       steps {
         sh '''
-            az aks get-credentials \
-                --resource-group $RESOURCE_GROUP \
-                --name $CLUSTER_NAME \
-                --overwrite-existing
-        '''
-        sh '''
+          az aks get-credentials --resource-group $RESOURCE_GROUP --name $CLUSTER_NAME --overwrite-existing
           sed "s|<IMAGE_TAG>|blue|g" deploy/deployment-blue.yaml | kubectl apply -f -
         '''
       }
@@ -120,10 +109,7 @@ pipeline {
     stage('Deploy Green to AKS') {
       steps {
         sh '''
-            az aks get-credentials \
-                --resource-group $RESOURCE_GROUP \
-                --name $CLUSTER_NAME \
-                --overwrite-existing
+          az aks get-credentials --resource-group $RESOURCE_GROUP --name $CLUSTER_NAME --overwrite-existing
           sed "s|<IMAGE_TAG>|green|g" deploy/deployment-green.yaml | kubectl apply -f -
         '''
       }
@@ -136,10 +122,20 @@ pipeline {
         '''
       }
     }
-  }
-   post {
-        always {
-            echo "🔚 Pipeline finished."
-        }
+
+    // Optional: switch back to blue if needed
+    stage('Switch to Blue') {
+      steps {
+        sh '''
+          kubectl patch service html-service -p '{"spec":{"selector":{"version":"blue"}}}'
+        '''
+      }
     }
+  }
+
+  post {
+    always {
+      echo "🔚 Pipeline finished."
+    }
+  }
 }
