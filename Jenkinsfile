@@ -4,7 +4,7 @@ pipeline {
 
   environment {
     DOCKERHUB_CREDENTIALS = credentials('Dockerhub')
-    IMAGE_NAME = "sandy/bluegreen"
+    IMAGE_NAME = "sandy16docker/bluegreen"
     IMAGE_TAG = "${BUILD_NUMBER}"
     ARM_CLIENT_ID       = credentials('AZURE_CLIENT_ID')
     ARM_CLIENT_SECRET   = credentials('AZURE_CLIENT_SECRET')

@@ -16,6 +16,6 @@ spec:
     spec:
       containers:
         - name: nginx
-          image: sandy/bluegreen:<IMAGE_TAG>
+          image: sandy16docker/bluegreen:<IMAGE_TAG>
           ports:
             - containerPort: 80
