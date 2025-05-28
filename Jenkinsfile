@@ -16,6 +16,12 @@ pipeline {
 
 
   stages {
+    stage('Git Checkout') {
+            steps {
+                checkout scm
+            }
+    }
+
     stage('Blue - Build & Push') {
       steps {
         script {
