@@ -26,6 +26,7 @@ pipeline {
         script {
           withCredentials([usernamePassword(credentialsId: 'DOCKERHUB_CREDENTIALS', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
             sh '''
+             cat blue/index.html
               cp blue/index.html .
               echo "Building and pushing blue image..."
               echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
