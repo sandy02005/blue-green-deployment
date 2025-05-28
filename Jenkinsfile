@@ -22,76 +22,61 @@ pipeline {
             checkout scm
         }
     }
-    stage("Build Docker Image") {
-            steps {
-                script {
-                    echo "🛠️ Building Docker image with no cache..."
-                    sh "docker build --no-cache -t ${IMAGE_NAME}:${IMAGE_TAG} ."
-                }
+
+
+    stage('Blue - Build & Push') {
+      steps {
+        script {
+            withCredentials([usernamePassword(credentialsId: 'Dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+            sh '''
+                cp blue/index.html .
+                docker build -t $IMAGE_NAME:blue .
+                docker push $IMAGE_NAME:blue
+            '''
             }
         }
-         stage("Hello world") {
-            steps {
-                script {
-                    echo "Hello world"
-                }
-            }
-          
+      }
+    }
+
+    stage('Green - Build & Push') {
+      steps {
+        script {
+        withCredentials([usernamePassword(credentialsId: 'Dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+            sh '''
+                cp green/index.html .
+                docker build -t $IMAGE_NAME:green .
+                docker push $IMAGE_NAME:green
+            '''
         }
-
-    // stage('Blue - Build & Push') {
-    //   steps {
-    //     script {
-    //         withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-    //         sh '''
-    //             cp blue/index.html .
-    //             docker build -t $IMAGE_NAME:blue .
-    //             docker push $IMAGE_NAME:blue
-    //         '''
-    //         }
-    //     }
-    //   }
-    // }
-
-    // stage('Green - Build & Push') {
-    //   steps {
-    //     script {
-    //     withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-    //         sh '''
-    //             cp green/index.html .
-    //             docker build -t $IMAGE_NAME:green .
-    //             docker push $IMAGE_NAME:green
-    //         '''
-    //     }
           
 
-    //     }
-    //   }
-    // }
+        }
+      }
+    }
 
-    // stage('Deploy Blue to AKS') {
-    //   steps {
-    //     sh '''
-    //       sed "s|<IMAGE_TAG>|blue|g" deploy/deployment-blue.yaml | kubectl apply -f -
-    //     '''
-    //   }
-    // }
+    stage('Deploy Blue to AKS') {
+      steps {
+        sh '''
+          sed "s|<IMAGE_TAG>|blue|g" deploy/deployment-blue.yaml | kubectl apply -f -
+        '''
+      }
+    }
 
-    // stage('Deploy Green to AKS') {
-    //   steps {
-    //     sh '''
-    //       sed "s|<IMAGE_TAG>|green|g" deploy/deployment-green.yaml | kubectl apply -f -
-    //     '''
-    //   }
-    // }
+    stage('Deploy Green to AKS') {
+      steps {
+        sh '''
+          sed "s|<IMAGE_TAG>|green|g" deploy/deployment-green.yaml | kubectl apply -f -
+        '''
+      }
+    }
 
-    // stage('Switch to Green') {
-    //   steps {
-    //     sh '''
-    //       kubectl patch service html-service -p '{"spec":{"selector":{"version":"green"}}}'
-    //     '''
-    //   }
-    // }
+    stage('Switch to Green') {
+      steps {
+        sh '''
+          kubectl patch service html-service -p '{"spec":{"selector":{"version":"green"}}}'
+        '''
+      }
+    }
   }
    post {
         always {
