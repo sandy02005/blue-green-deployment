@@ -22,22 +22,19 @@ pipeline {
         }
     }
 
-    // stage('Blue - Build & Push') {
-    //   steps {
-    //     script {
-    //         withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-    //         sh '''
-    //             cp blue/index.html .
-    //             docker build -t $IMAGE_NAME:blue .
-    //             docker push $IMAGE_NAME:blue
-    //         '''
-    //         }
-
-         
-    //     }
-
-    //   }
-    // }
+    stage('Blue - Build & Push') {
+      steps {
+        script {
+            withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+            sh '''
+                cp blue/index.html .
+                docker build -t $IMAGE_NAME:blue .
+                docker push $IMAGE_NAME:blue
+            '''
+            }
+        }
+      }
+    }
 
     // stage('Green - Build & Push') {
     //   steps {
