@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: html-service
+  labels:
+    app: html
+spec:
+  selector:
+    app: html
+    version: blue # Start with 'blue'; Jenkins will patch this to 'green' during switch
+  type: LoadBalancer
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80

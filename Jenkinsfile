@@ -53,7 +53,7 @@ pipeline {
       }
     }
 
-    stage('Azure login') {
+    stage('Azure Login') {
       steps {
         echo "🔐 Logging into Azure..."
         sh '''
@@ -106,6 +106,15 @@ pipeline {
       }
     }
 
+    stage('Deploy Service') {
+      steps {
+        sh '''
+          echo "Deploying LoadBalancer service..."
+          kubectl apply -f deploy/html-service.yaml
+        '''
+      }
+    }
+
     stage('Deploy Green to AKS') {
       steps {
         sh '''
@@ -118,15 +127,16 @@ pipeline {
     stage('Switch to Green') {
       steps {
         sh '''
+          echo "Switching traffic to Green..."
           kubectl patch service html-service -p '{"spec":{"selector":{"version":"green"}}}'
         '''
       }
     }
 
-    // Optional: switch back to blue if needed
     stage('Switch to Blue') {
       steps {
         sh '''
+          echo "Switching traffic back to Blue (if needed)..."
           kubectl patch service html-service -p '{"spec":{"selector":{"version":"blue"}}}'
         '''
       }
