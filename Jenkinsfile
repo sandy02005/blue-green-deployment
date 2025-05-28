@@ -22,36 +22,33 @@ pipeline {
     }
 
     stage('Blue - Build & Push') {
-      steps {
+    steps {
         script {
-          withCredentials([usernamePassword(credentialsId: 'DOCKERHUB_CREDENTIALS', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+        withCredentials([usernamePassword(credentialsId: 'DOCKERHUB_CREDENTIALS', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
             sh '''
-             cat blue/index.html
-              cp blue/index.html .
-              echo "Building and pushing blue image..."
-              echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-              docker build --no-cache -t $IMAGE_NAME:blue .
-              docker push $IMAGE_NAME:blue
+            cp blue/index.html index.html
+            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+            docker build -t $IMAGE_NAME:blue .
+            docker push $IMAGE_NAME:blue
             '''
-          }
         }
-      }
+        }
+    }
     }
 
     stage('Green - Build & Push') {
-      steps {
-        script {
-          withCredentials([usernamePassword(credentialsId: 'DOCKERHUB_CREDENTIALS', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-            sh '''
-              cp green/index.html .
-              echo "Building and pushing green image..."
-              echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-              docker build --no-cache -t $IMAGE_NAME:green .
-              docker push $IMAGE_NAME:green
-            '''
-          }
+        steps {
+            script {
+            withCredentials([usernamePassword(credentialsId: 'DOCKERHUB_CREDENTIALS', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                sh '''
+                cp green/index.html index.html
+                echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                docker build -t $IMAGE_NAME:green .
+                docker push $IMAGE_NAME:green
+                '''
+            }
+            }
         }
-      }
     }
 
     stage('Azure Login') {
