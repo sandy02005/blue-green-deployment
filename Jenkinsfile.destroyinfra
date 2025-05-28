@@ -2,22 +2,23 @@ pipeline {
     agent any
 
     parameters {
-        booleanParam(name: 'DESTROY_INFRA', defaultValue: false, description: 'Check to destroy infra ( Azure/AWS )')
+        booleanParam(name: 'DESTROY_INFRA', defaultValue: false, description: 'Check to destroy infra (Azure/AWS)')
         booleanParam(name: 'DESTROY_INFRA_AKS', defaultValue: false, description: 'Check to destroy infrastructure (Azure)')
         booleanParam(name: 'DESTROY_INFRA_AWS', defaultValue: false, description: 'Check to destroy infrastructure (AWS)')
     }
 
     environment {
-        // aws access
+        // AWS access
         AWS_ACCESS_KEY_ID     = credentials('aws-access-key-id')
         AWS_SECRET_ACCESS_KEY = credentials('aws-secret-access-key')
         AWS_DEFAULT_REGION    = 'us-east-1'
-        
+
         TABLE_NAME            = 'terraform-locks'
         BUCKET_NAME           = 'my-terraform-remote-state-bucket-007'
         S3_FOLDER             = 'markerFile'
-        S3_TERRAFORM_FOLDER       = 'dev'
-        // azure access
+        S3_TERRAFORM_FOLDER   = 'dev'
+
+        // Azure access
         ARM_CLIENT_ID         = credentials('AZURE_CLIENT_ID')
         ARM_CLIENT_SECRET     = credentials('AZURE_CLIENT_SECRET')
         ARM_TENANT_ID         = credentials('AZURE_TENANT_ID')
@@ -35,15 +36,14 @@ pipeline {
             steps {
                 dir('infra/azure-aks') {
                     sh '''
-                    if [ ! -f id_rsa ]; then
-                        ssh-keygen -t rsa -b 2048 -f id_rsa -C "terraform@devops" -N ""
-                    fi
+                        if [ ! -f id_rsa ]; then
+                            ssh-keygen -t rsa -b 2048 -f id_rsa -C "terraform@devops" -N ""
+                        fi
                     '''
                 }
             }
         }
 
-        // destroy azure infrastructure
         stage('Destroy Azure AKS Infrastructure') {
             when {
                 allOf {
@@ -54,84 +54,64 @@ pipeline {
             steps {
                 dir('infra/azure-aks') {
                     sh '''
-                    terraform init
-                    terraform plan
-                    terraform destroy -auto-approve
+                        terraform init
+                        terraform plan
+                        terraform destroy -auto-approve
                     '''
                 }
                 echo '✅ Azure AKS infrastructure destroyed.'
             }
         }
 
-        // delete dynamodb table
-
         stage('Delete DynamoDB Table') {
+            when {
+                allOf {
+                    expression { params.DESTROY_INFRA }
+                    expression { params.DESTROY_INFRA_AWS }
+                }
+            }
             steps {
                 script {
-                    def tableName = TABLE_NAME
-                    def region = AWS_DEFAULT_REGION
-
-                    echo "🔍 Checking if DynamoDB table '${tableName}' exists..."
-
-                    def tableExists = sh(
-                        script: "aws dynamodb describe-table --table-name ${tableName} --region ${region}",
+                    echo "🔍 Checking if DynamoDB table '${TABLE_NAME}' exists..."
+                    def exists = sh(
+                        script: "aws dynamodb describe-table --table-name ${TABLE_NAME} --region ${AWS_DEFAULT_REGION}",
                         returnStatus: true
                     ) == 0
 
-                    if (tableExists) {
-                        echo "⚠️ Table found. Deleting DynamoDB table '${tableName}'..."
-                        sh "aws dynamodb delete-table --table-name ${tableName} --region ${region}"
-                        echo "✅ DynamoDB table '${tableName}' deleted."
+                    if (exists) {
+                        echo "⚠️ Table found. Deleting DynamoDB table '${TABLE_NAME}'..."
+                        sh "aws dynamodb delete-table --table-name ${TABLE_NAME} --region ${AWS_DEFAULT_REGION}"
+
+                        echo "⏳ Waiting for table to be deleted..."
+                        int retries = 12
+                        int waitTime = 5
+                        boolean deleted = false
+
+                        for (int i = 0; i < retries; i++) {
+                            def check = sh(
+                                script: "aws dynamodb describe-table --table-name ${TABLE_NAME} --region ${AWS_DEFAULT_REGION}",
+                                returnStatus: true
+                            )
+                            if (check != 0) {
+                                deleted = true
+                                break
+                            }
+                            echo "Waiting... (${i+1}/${retries})"
+                            sleep(waitTime)
+                        }
+
+                        if (deleted) {
+                            echo "✅ DynamoDB table '${TABLE_NAME}' deleted."
+                        } else {
+                            echo "⚠️ Timeout waiting for table deletion."
+                        }
                     } else {
-                        echo "✅ Table '${tableName}' does not exist. Skipping deletion."
+                        echo "✅ DynamoDB table '${TABLE_NAME}' does not exist."
                     }
                 }
             }
         }
 
-        stage('Delete DynamoDB Table') {
-            steps {
-                script {
-            echo "🔍 Checking if DynamoDB table '${TABLE_NAME}' exists..."
-            def exists = sh(
-                script: "aws dynamodb describe-table --table-name ${TABLE_NAME} --region ${AWS_DEFAULT_REGION}",
-                returnStatus: true
-            ) == 0
-
-            if (exists) {
-                echo "⚠️ Table found. Deleting DynamoDB table '${TABLE_NAME}'..."
-                sh "aws dynamodb delete-table --table-name ${TABLE_NAME} --region ${AWS_DEFAULT_REGION}"
-
-                echo "⏳ Waiting for DynamoDB table '${TABLE_NAME}' to be deleted..."
-                // Poll every 5 seconds for max 1 min to confirm deletion
-                int retries = 12
-                int waitTime = 5
-                boolean deleted = false
-                for (int i = 0; i < retries; i++) {
-                def check = sh(
-                    script: "aws dynamodb describe-table --table-name ${TABLE_NAME} --region ${AWS_DEFAULT_REGION}",
-                    returnStatus: true
-                )
-                if (check != 0) {
-                    deleted = true
-                    break
-                }
-                echo "Waiting for table to delete... (${i+1}/${retries})"
-                sleep(waitTime)
-                }
-                if (deleted) {
-                echo "✅ DynamoDB table '${TABLE_NAME}' deleted successfully."
-                } else {
-                echo "⚠️ Timeout waiting for DynamoDB table deletion."
-                }
-            } else {
-                echo "✅ DynamoDB table '${TABLE_NAME}' does not exist, skipping."
-            }
-                }
-            }
-        }
-
-        // cleanup s3 bucket
         stage('Cleanup S3') {
             when {
                 allOf {
@@ -142,48 +122,45 @@ pipeline {
             steps {
                 dir('infra/backend-aws') {
                     script {
-
                         echo '🧹 Cleaning up S3 bucket...'
                         sh '''
+                            if [ -n "$S3_FOLDER" ]; then
+                                aws s3 rm s3://$BUCKET_NAME/$S3_FOLDER --recursive || true
+                            fi
 
-                        if [ -z "$S3_FOLDER" ]; then
-                            aws s3 rm s3://$BUCKET_NAME --recursive
-                        else
-                            aws s3 rm s3://$BUCKET_NAME/$S3_FOLDER --recursive
-                        fi
-
-                        if [ -z "$S3_TERRAFORM_FOLDER" ]; then
-                            aws s3 rm s3://$BUCKET_NAME --recursive
-                        else
-                            aws s3 rm s3://$BUCKET_NAME/$S3_TERRAFORM_FOLDER --recursive
-                        fi
-
+                            if [ -n "$S3_TERRAFORM_FOLDER" ]; then
+                                aws s3 rm s3://$BUCKET_NAME/$S3_TERRAFORM_FOLDER --recursive || true
+                            fi
                         '''
-                        echo '✅ S3 bucket cleaned.'
+                        echo '✅ S3 paths cleaned.'
                     }
                 }
             }
         }
 
-         stage('Delete S3 Bucket') {
+        stage('Delete S3 Bucket') {
+            when {
+                allOf {
+                    expression { params.DESTROY_INFRA }
+                    expression { params.DESTROY_INFRA_AWS }
+                }
+            }
             steps {
                 script {
-                echo "🗑️ Deleting S3 bucket ${BUCKET_NAME} ..."
-                def status = sh(
-                    script: "aws s3 rb s3://${BUCKET_NAME} --force",
-                    returnStatus: true
-                )
-                if (status == 0) {
-                    echo "✅ S3 bucket deleted successfully."
-                } else {
-                    echo "⚠️ Failed to delete S3 bucket or bucket does not exist."
-                }
+                    echo "🗑️ Deleting S3 bucket ${BUCKET_NAME} ..."
+                    def status = sh(
+                        script: "aws s3 rb s3://${BUCKET_NAME} --force",
+                        returnStatus: true
+                    )
+                    if (status == 0) {
+                        echo "✅ S3 bucket deleted successfully."
+                    } else {
+                        echo "⚠️ Failed to delete S3 bucket or bucket does not exist."
+                    }
                 }
             }
         }
 
-
-        // destroy aws infrastructure
         stage('Destroy AWS Infrastructure') {
             when {
                 allOf {
@@ -194,15 +171,14 @@ pipeline {
             steps {
                 dir('infra/backend-aws') {
                     sh '''
-                    terraform init
-                    terraform plan
-                    terraform destroy -auto-approve
+                        terraform init
+                        terraform plan
+                        terraform destroy -auto-approve
                     '''
                 }
                 echo '✅ AWS infrastructure destroyed.'
             }
         }
-      
     }
 
     post {
