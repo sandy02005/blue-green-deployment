@@ -42,11 +42,7 @@ pipeline {
         }
 
         stage('Setup AWS S3, DynamoDB - (Terraform)') {
-            // when {
-            //     expression {
-            //         return params.APPLY_INFRA
-            //     }
-            // }
+           
             steps {
                 script {
                     echo '🔍 Checking if backend is already set up in S3...'
@@ -74,9 +70,7 @@ pipeline {
         }
 
         stage('Setup Azure AKS - (Terraform)') {
-            // when {
-            //     expression { return params.APPLY_INFRA }
-            // }
+            
             steps {
                 dir('infra/azure-aks') {
                     script {

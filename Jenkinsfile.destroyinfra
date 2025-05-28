@@ -63,38 +63,7 @@ pipeline {
             }
         }
 
-        // remove items from dynamodb table
-        // stage('Delete AWS DynamoDB Table') {
-        //     when {
-        //         allOf {
-        //             expression { params.DESTROY_INFRA }
-        //             expression { params.DESTROY_INFRA_AWS }
-        //         }
-        //     }
-        //     steps {
-        //         withCredentials([
-        //             string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
-        //             string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
-        //         ]) {
-        //            sh '''
-        //             echo "🧹 Deleting items from DynamoDB table: $TABLE_NAME"
-
-        //             echo "🔍 Checking if DynamoDB table '$TABLE_NAME' exists..."
-        //             if aws dynamodb describe-table --table-name "$TABLE_NAME" --region "$REGION" > /dev/null 2>&1; then
-        //                 echo "🧹 Table exists. Deleting..."
-        //                 aws dynamodb delete-table --table-name "$TABLE_NAME" --region "$REGION"
-
-        //                 echo "⏳ Waiting for table to be fully deleted..."
-        //                 aws dynamodb wait table-not-exists --table-name "$TABLE_NAME" --region "$REGION"
-        //                 echo "✅ Table deleted."
-        //             else
-        //                 echo "⚠️ Table '$TABLE_NAME' does not exist. Skipping deletion."
-        //                 fi
-
-        //             '''
-        //         }
-        //     }
-        // }
+        // delete dynamodb table
 
         stage('Delete DynamoDB Table') {
             steps {
@@ -116,6 +85,48 @@ pipeline {
                     } else {
                         echo "✅ Table '${tableName}' does not exist. Skipping deletion."
                     }
+                }
+            }
+        }
+
+        stage('Delete DynamoDB Table') {
+            steps {
+                script {
+            echo "🔍 Checking if DynamoDB table '${TABLE_NAME}' exists..."
+            def exists = sh(
+                script: "aws dynamodb describe-table --table-name ${TABLE_NAME} --region ${AWS_DEFAULT_REGION}",
+                returnStatus: true
+            ) == 0
+
+            if (exists) {
+                echo "⚠️ Table found. Deleting DynamoDB table '${TABLE_NAME}'..."
+                sh "aws dynamodb delete-table --table-name ${TABLE_NAME} --region ${AWS_DEFAULT_REGION}"
+
+                echo "⏳ Waiting for DynamoDB table '${TABLE_NAME}' to be deleted..."
+                // Poll every 5 seconds for max 1 min to confirm deletion
+                int retries = 12
+                int waitTime = 5
+                boolean deleted = false
+                for (int i = 0; i < retries; i++) {
+                def check = sh(
+                    script: "aws dynamodb describe-table --table-name ${TABLE_NAME} --region ${AWS_DEFAULT_REGION}",
+                    returnStatus: true
+                )
+                if (check != 0) {
+                    deleted = true
+                    break
+                }
+                echo "Waiting for table to delete... (${i+1}/${retries})"
+                sleep(waitTime)
+                }
+                if (deleted) {
+                echo "✅ DynamoDB table '${TABLE_NAME}' deleted successfully."
+                } else {
+                echo "⚠️ Timeout waiting for DynamoDB table deletion."
+                }
+            } else {
+                echo "✅ DynamoDB table '${TABLE_NAME}' does not exist, skipping."
+            }
                 }
             }
         }
@@ -153,6 +164,24 @@ pipeline {
                 }
             }
         }
+
+         stage('Delete S3 Bucket') {
+            steps {
+                script {
+                echo "🗑️ Deleting S3 bucket ${BUCKET_NAME} ..."
+                def status = sh(
+                    script: "aws s3 rb s3://${BUCKET_NAME} --force",
+                    returnStatus: true
+                )
+                if (status == 0) {
+                    echo "✅ S3 bucket deleted successfully."
+                } else {
+                    echo "⚠️ Failed to delete S3 bucket or bucket does not exist."
+                }
+                }
+            }
+        }
+
 
         // destroy aws infrastructure
         stage('Destroy AWS Infrastructure') {
