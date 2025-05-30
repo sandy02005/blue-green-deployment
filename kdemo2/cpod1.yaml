@@ -1,0 +1,14 @@
+apiVersion: v1 
+kind: Pod
+metadata:
+  name: pod-env-var 
+spec:
+  containers:
+    - name: testcon1
+      image: nginx 
+      env:
+        - name: env_dburl
+          valueFrom:
+            configMapKeyRef:
+              name: example-configmap
+              key: url

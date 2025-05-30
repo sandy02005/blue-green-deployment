@@ -1,0 +1,18 @@
+kind: PersistentVolume 
+apiVersion: v1
+metadata:
+   name: pv0001 
+   labels:
+      type: local
+spec:
+
+  capacity: 
+      storage: 2Gi 
+  accessModes:
+      - ReadWriteOnce 
+  persistentVolumeReclaimPolicy: Retain
+  claimRef:
+    name: myclaim-1
+    namespace: default
+  hostPath:
+         path: "/tmp/data01"

@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: rlab2
+spec:
+  containers:
+  - name: rlab2
+    image: gcr.io/kubedemo1-305010/nginxapp1:latest
+    resources:
+      requests:
+        memory: "1Gi"
+
+      limits:
+        memory: "2Gi"

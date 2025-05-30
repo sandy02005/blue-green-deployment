@@ -1,0 +1,18 @@
+kind: Pod
+apiVersion: v1
+metadata:
+  name: pod2
+spec:
+  containers:
+    - name: mypod
+      image: mcr.microsoft.com/oss/nginx/nginx:1.15.5-alpine
+      resources:
+        
+      volumeMounts:
+        - mountPath: "/mnt/azure"
+          name: vol1
+          readOnly: false
+  volumes:
+    - name: vol1
+      persistentVolumeClaim:
+        claimName: dynpvc1

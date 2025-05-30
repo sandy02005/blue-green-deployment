@@ -1,0 +1,74 @@
+pipeline {
+    agent any
+
+
+    environment {
+        IMAGE_NAME = 'sooraj0249/nodejs-ats-app'
+        IMAGE_TAG = "${BUILD_NUMBER}"
+        // IMAGE_TAG = "latest"
+        DOCKERHUB_CREDENTIALS = credentials('dockerhub-creds')
+        
+    }
+
+    stages {
+        stage('Git Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+       
+        stage("Build Docker Image") {
+            steps {
+                script {
+                    echo "🛠️ Building Docker image with no cache..."
+                    sh "docker build --no-cache -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+                }
+            }
+        }
+
+       
+        stage("Push Docker Image") {
+            steps {
+                script {
+                    echo "🔐 Logging in to Docker Hub..."
+                    withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                        sh """
+                            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                            docker push ${IMAGE_NAME}:${IMAGE_TAG}
+                        """
+                    }
+                }
+            }
+        }
+
+        // stage('SETUP INFRASTRUCTURE') {
+        //     steps {
+        //         script {
+        //             build job: 'setup-ats-infra', 
+        //                 wait: true
+        //         }
+        //     }
+        // }
+
+        stage('Deploy to AKS') {
+            steps {
+                script {
+                    build job: 'ats-cd-pipeline', 
+                        parameters: [
+                            string(name: 'DOCKER_IMAGE_TAG', value: "${IMAGE_TAG}")
+                        ], 
+                        wait: true
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            script {
+                echo "🔚 Pipeline finished."
+            }
+        }
+    }
+}

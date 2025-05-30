@@ -1,0 +1,101 @@
+pipeline {  
+    agent any
+
+    parameters {
+        booleanParam(name: 'APPLY_INFRA', defaultValue: true, description: 'Check to build infra (AWS/Azure)')
+    }
+
+    environment{
+        // AWS access
+        AWS_ACCESS_KEY_ID     = credentials('aws-access-key-id')
+        AWS_SECRET_ACCESS_KEY = credentials('aws-secret-access-key')
+        AWS_DEFAULT_REGION    = 'us-east-1'
+        // AWS S3 bucket and DynamoDB table for Terraform state locking
+        BUCKET_NAME = "my-terraform-remote-state-bucket-007"
+        S3_FOLDER="markerFile"
+        MARKER_FILE_NAME   = ".backend_done"
+        // Azure acces
+        ARM_CLIENT_ID       = credentials('AZURE_CLIENT_ID')
+        ARM_CLIENT_SECRET   = credentials('AZURE_CLIENT_SECRET')
+        ARM_TENANT_ID       = credentials('AZURE_TENANT_ID')
+        ARM_SUBSCRIPTION_ID = credentials('AZURE_SUBSCRIPTION_ID')
+
+    }
+
+    stages {
+        stage('Generate SSH Key (for Azure AKS)') {
+            steps {
+                dir('infra/azure-aks') {
+                    sh '''
+                    if [ ! -f id_rsa ]; then
+                        ssh-keygen -t rsa -b 2048 -f id_rsa -C "terraform@devops" -N ""
+                    fi
+                    '''
+                }
+            }
+        }
+
+        stage('SETTING UP INFRA.....') {
+            steps {
+                echo 'Starting infrastructure setup...'
+            }
+        }
+
+        stage('Setup AWS S3, DynamoDB - (Terraform)') {
+            // when {
+            //     expression {
+            //         return params.APPLY_INFRA
+            //     }
+            // }
+            steps {
+                script {
+                    echo '🔍 Checking if backend is already set up in S3...'
+                    def markerfileCheck = sh(
+                        script: "aws s3 ls s3://${BUCKET_NAME}/${S3_FOLDER}/${MARKER_FILE_NAME}",
+                        returnStatus: true
+                    )
+                    if (markerfileCheck != 0) {
+                        echo "✅ File not found. Proceeding with Terraform apply..."
+                        dir('infra/backend-aws') {
+                            sh '''
+                                terraform init
+                                terraform plan
+                                terraform apply -auto-approve
+                                echo "backend setup complete" > ${MARKER_FILE_NAME}
+                                aws s3 cp ${MARKER_FILE_NAME} s3://${BUCKET_NAME}/${S3_FOLDER}/${MARKER_FILE_NAME}
+                            '''
+                        }
+                    } else {
+                        echo "⚠️ ${MARKER_FILE_NAME} already exists in S3. Skipping Terraform apply."
+                    }
+                }
+                
+            }
+        }
+
+        stage('Setup Azure AKS - (Terraform)') {
+            // when {
+            //     expression { return params.APPLY_INFRA }
+            // }
+            steps {
+                dir('infra/azure-aks') {
+                    script {
+                        echo '✅ Applying Azure AKS infra...'
+                        sh '''
+                        terraform init
+                        terraform plan
+                        terraform apply -auto-approve
+                        '''
+                    }
+                }
+            }
+        }
+    }
+    post {
+        always {
+            script {
+                echo "🔚 Pipeline finished."
+            }
+        }
+    }
+}
