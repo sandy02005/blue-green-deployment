@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: html-blue # Deployment name unique per color
+  labels:
+    app: html
+    version: blue
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: html
+      version: blue # selector matches labels below
+  template:
+    metadata:
+      labels:
+        app: html
+        version: blue # pod labels used by service & selector
+    spec:
+      containers:
+        - name: nginx
+          image: sandy16docker/bluegreen:<IMAGE_TAG> # <IMAGE_TAG> replaced by Jenkins (blue/green)
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
